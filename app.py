@@ -33,21 +33,35 @@ if uploaded_file is not None:
         extracted_text = pytesseract.image_to_string(thresh, config=custom_config)
 
         # --- 5. DATA CLEANING (Regex) ---
-        stat_pattern = r'\d+\s+\d+\s+\d+\s+\d+'
-        matches = re.findall(stat_pattern, extracted_text)
+        # --- 5. DATA CLEANING (Bulletproof OCR Logic) ---
+        
+        # 1. Clean the raw text: Replace slashes, pipes, and OCR artifacts with spaces
+        clean_text = re.sub(r'[/|\\lI]', ' ', extracted_text)
 
-        if not matches:
+        valid_player_stats = []
+        
+        # 2. Parse the data line by line
+        for line in clean_text.split('\n'):
+            # Find all standalone numbers in the current line
+            numbers = re.findall(r'\b\d+\b', line)
+            
+            # A standard Valorant stat line ALWAYS ends with Combat Score, K, D, A
+            if len(numbers) >= 4:
+                # We slice the array to grab ONLY the last 4 numbers. 
+                # This ignores random numbers Tesseract might read in a player's username.
+                valid_player_stats.append(numbers[-4:])
+
+        if not valid_player_stats:
             st.error("Could not find clean stat lines. Make sure it's a clear scoreboard screenshot!")
         else:
-            # Grab the first player's stats
-            first_player_stats = matches[0].split()
+            # Grab the first valid player's stats
+            first_player_stats = valid_player_stats[0]
             combat_score = int(first_player_stats[0])
             kills = int(first_player_stats[1])
             deaths = int(first_player_stats[2])
             assists = int(first_player_stats[3])
             
             kd_ratio = round(kills / deaths, 2) if deaths > 0 else kills
-
             # --- 6. THE DASHBOARD UI ---
             st.success("Match Data Extracted Successfully!")
             
@@ -63,10 +77,12 @@ user_agent = col_agent.selectbox("Which Agent did you play?", ["Duelist (Jett/Re
 
 # ... (Keep your existing File Uploader and Regex extraction here) ...
 
-if not matches:
+if not valid_player_stats:
             st.error("Could not find clean stat lines. Make sure it's a clear scoreboard screenshot!")
 else:
-            first_player_stats = matches[0].split()
+            # Grab the first valid player's stats
+            first_player_stats = valid_player_stats[0]
+            
             combat_score = int(first_player_stats[0])
             kills = int(first_player_stats[1])
             deaths = int(first_player_stats[2])
