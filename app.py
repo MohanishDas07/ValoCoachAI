@@ -51,25 +51,66 @@ if uploaded_file is not None:
             # --- 6. THE DASHBOARD UI ---
             st.success("Match Data Extracted Successfully!")
             
-            # Create 4 columns for a slick stat display
+            import google.generativeai as genai
+
+# ... (Keep your existing imports and setup code at the top) ...
+
+# --- NEW: UI FOR CONTEXT ---
+st.markdown("### 📝 Match Context")
+col_rank, col_agent = st.columns(2)
+user_rank = col_rank.selectbox("What is your current rank?", ["Iron/Bronze", "Silver/Gold", "Platinum/Diamond", "Ascendant+"])
+user_agent = col_agent.selectbox("Which Agent did you play?", ["Duelist (Jett/Reyna/Raze)", "Controller (Omen/Clove/Viper)", "Initiator (Sova/Fade/Skye)", "Sentinel (Killjoy/Cypher/Sage)"])
+
+# ... (Keep your existing File Uploader and Regex extraction here) ...
+
+if not matches:
+            st.error("Could not find clean stat lines. Make sure it's a clear scoreboard screenshot!")
+else:
+            first_player_stats = matches[0].split()
+            combat_score = int(first_player_stats[0])
+            kills = int(first_player_stats[1])
+            deaths = int(first_player_stats[2])
+            assists = int(first_player_stats[3])
+            
+            kd_ratio = round(kills / deaths, 2) if deaths > 0 else kills
+
+            st.success("Match Data Extracted Successfully!")
+            
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Kills", kills)
             col2.metric("Deaths", deaths)
             col3.metric("Assists", assists)
             col4.metric("K/D Ratio", kd_ratio)
 
-            # --- 7. THE AI COACHING VERDICT ---
-            st.markdown("### 🤖 Coach's Verdict")
+            # --- NEW: THE LLM COACHING ENGINE ---
+            st.markdown("### 🧠 AI Coach Analysis")
             
-            if kd_ratio < 1.0:
-                st.warning("**Underperforming in pure duels.**\n\nYour K/D is negative. Stop taking fair 50/50 fights. Focus on trading your teammates and using utility to blind/stun before swinging.")
-            elif assists > 8:
-                st.info("**High Impact Support.**\n\nYou are setting your team up perfectly. If you are losing, you need to communicate your utility timing better to your duelists.")
-            elif kills > 20:
-                st.success("**Hard Carrying.**\n\nYou are mechanically out-aiming the lobby. If you lost this match, it's a macro-strategy issue, not an aim issue. Start calling rotations.")
-            else:
-                st.info("**Average Performance.**\n\nYou are trading evenly. To rank up, you need to find ways to secure 2 kills per round, usually by improving crosshair placement.")
-            
-            # A cool toggle to let users see the black-and-white image the AI processed
-            with st.expander("See what the AI saw (Debug View)"):
-                st.image(thresh, caption="Thresholded Image processing view")
+            # We add a button so the AI only generates advice when the user is ready
+            if st.button("Generate Custom Coaching Plan"):
+                with st.spinner("Consulting Radiant Coach API..."):
+                    
+                    # 1. Setup the API Key (We will secure this later)
+                    # Get a free key from Google AI Studio
+                    # Pull the key securely from the Streamlit vault
+                    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                    model = genai.GenerativeModel('gemini-2.5-flash')
+
+                    # 2. Construct the Prompt
+                    prompt = f"""
+                    You are a professional Radiant-level Valorant coach.
+                    Your student is currently in {user_rank} and played a {user_agent} in their last match.
+                    Their stats were: {kills} Kills, {deaths} Deaths, {assists} Assists, and a Combat Score of {combat_score}.
+                    
+                    Please provide a highly structured, analytical response formatted in Markdown:
+                    1. **Performance Verdict:** A harsh but fair 2-sentence analysis of their K/D/A based on their role.
+                    2. **Actionable Steps:** 3 concrete, step-by-step things they need to practice in the range or deathmatch to fix their specific issues.
+                    3. **Recommended Resources:** Specific YouTube creators, aim training routines (like Voltaic), or websites they should use to study their role.
+                    """
+
+                    # 3. Fetch and display the response
+                    try:
+                        response = model.generate_content(prompt)
+                        st.markdown(response.text)
+                    except Exception as e:
+                        # This will print the exact technical reason it failed
+                        st.error(f"System Error: {e}")
